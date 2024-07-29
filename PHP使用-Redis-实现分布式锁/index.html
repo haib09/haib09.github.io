@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang=zh>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="背景在分布式系统中，分布式锁是确保资源互斥访问的重要机制。我们在系统中修改已有数据时，需要先读取，然后进行修改保存，此时很容易遇到并发问题。由于修改和保存不是原子操作，在并发场景下，部分对数据的操作可能会丢失。在单服务器系统我们常用本地锁来避免并发带来的问题，然而，当服务采用集群方式部署时，本地锁无法在多个服务器之间生效，这时候保证数据的一致性就需要分布式锁来实现。 实现方式通过 Redis 的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="PHP使用Redis实现分布式锁">
+<meta property="og:url" content="https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/index.html">
+<meta property="og:site_name" content="Haix">
+<meta property="og:description" content="背景在分布式系统中，分布式锁是确保资源互斥访问的重要机制。我们在系统中修改已有数据时，需要先读取，然后进行修改保存，此时很容易遇到并发问题。由于修改和保存不是原子操作，在并发场景下，部分对数据的操作可能会丢失。在单服务器系统我们常用本地锁来避免并发带来的问题，然而，当服务采用集群方式部署时，本地锁无法在多个服务器之间生效，这时候保证数据的一致性就需要分布式锁来实现。 实现方式通过 Redis 的">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2024-07-29T05:17:20.000Z">
+<meta property="article:modified_time" content="2024-07-29T05:22:41.353Z">
+<meta property="article:author" content="Haix">
+<meta property="article:tag" content="php">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
+        
+      
+    
+    <!-- title -->
+    <title>PHP使用Redis实现分布式锁</title>
+    <!-- async scripts -->
+    <!-- Google Analytics -->
+
+
+    <!-- Umami Analytics -->
+
+
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 7.0.0"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="目录"><i class="fa-solid fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="顶部" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fa-solid fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/archives/">Blog</a></li><!--
+     --><!--
+       --><li><a href="/gtags/">Tags</a></li><!--
+     --><!--
+       --><li><a href="/TODO/">TODO</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/haix8">GitHub</a></li><!--
+     --><!--
+       --><li><a href="/search/">Search</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        
+        <li><a class="icon" aria-label="下一篇" href="/Cocos-Creator-%E6%9E%84%E5%BB%BA%E9%AB%98%E6%95%88%E7%9A%84%E6%95%B0%E6%8D%AE%E9%A9%B1%E5%8A%A8%E4%BA%8B%E4%BB%B6%E7%B3%BB%E7%BB%9F/"><i class="fa-solid fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="返回顶部" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+        <li><a class="icon" aria-label="分享文章" href="#"><i class="fa-solid fa-share-alt" aria-hidden="true" onmouseover="$('#i-share').toggle();" onmouseout="$('#i-share').toggle();" onclick="$('#share').toggle();return false;"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">上一篇</span>
+      <span id="i-next" class="info" style="display:none;">下一篇</span>
+      <span id="i-top" class="info" style="display:none;">返回顶部</span>
+      <span id="i-share" class="info" style="display:none;">分享文章</span>
+    </span>
+    <br/>
+    <div id="share" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/"><i class="fab fa-facebook " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&text=PHP使用Redis实现分布式锁"><i class="fab fa-twitter " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&title=PHP使用Redis实现分布式锁"><i class="fab fa-linkedin " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&is_video=false&description=PHP使用Redis实现分布式锁"><i class="fab fa-pinterest " aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=PHP使用Redis实现分布式锁&body=Check out this article: https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/"><i class="fa-solid fa-envelope " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&title=PHP使用Redis实现分布式锁"><i class="fab fa-get-pocket " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&title=PHP使用Redis实现分布式锁"><i class="fab fa-reddit " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&title=PHP使用Redis实现分布式锁"><i class="fab fa-stumbleupon " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&title=PHP使用Redis实现分布式锁"><i class="fab fa-digg " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&name=PHP使用Redis实现分布式锁&description="><i class="fab fa-tumblr " aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&t=PHP使用Redis实现分布式锁"><i class="fab fa-hacker-news " aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+    
+    
+      <div id="toc">
+        <ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%83%8C%E6%99%AF"><span class="toc-number">1.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%96%B9%E5%BC%8F"><span class="toc-number">2.</span> <span class="toc-text">实现方式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%8E%B7%E5%8F%96%E9%94%81"><span class="toc-number">3.</span> <span class="toc-text">获取锁</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8A%E6%94%BE%E9%94%81"><span class="toc-number">4.</span> <span class="toc-text">释放锁</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%BF%E7%94%A8"><span class="toc-number">5.</span> <span class="toc-text">使用</span></a></li></ol>
+      </div>
+    
+  </span>
+</div>
+
+    
+    <div class="content index py4 ">
+        
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle p-name" itemprop="name headline">
+        PHP使用Redis实现分布式锁
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author p-author h-card" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span class="p-name" itemprop="name">Haix</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2024-07-29T05:17:20.000Z" class="dt-published" itemprop="datePublished">2024-07-29</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fa-solid fa-tag"></i>
+        <a class="p-category" href="/tags/php/" rel="tag">php</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content e-content" itemprop="articleBody">
+    <h3 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h3><p>在分布式系统中，分布式锁是确保资源互斥访问的重要机制。我们在系统中修改已有数据时，需要先读取，然后进行修改保存，此时很容易遇到并发问题。由于修改和保存不是原子操作，在并发场景下，部分对数据的操作可能会丢失。在单服务器系统我们常用本地锁来避免并发带来的问题，然而，当服务采用集群方式部署时，本地锁无法在多个服务器之间生效，这时候保证数据的一致性就需要分布式锁来实现。</p>
+<h3 id="实现方式"><a href="#实现方式" class="headerlink" title="实现方式"></a>实现方式</h3><p>通过 Redis 的 <code>SET</code> 和 <code>DEL</code> 命令实现锁的设置和释放，并使用 Lua 脚本确保操作的原子性。</p>
+<ul>
+<li><p>加锁命令：<code>SETNX key value</code>，当键不存在时，对键进行设置操作并返回成功，否则返回失败。KEY 是锁的唯一标识，一般按业务来决定命名。</p>
+</li>
+<li><p>解锁命令：<code>DEL key</code>，通过删除键值对释放锁，以便其他线程可以通过 SETNX 命令来获取锁。</p>
+</li>
+<li><p>锁超时：<code>EXPIRE key timeout</code>, 设置 key 的超时时间，以保证即使锁没有被显式释放，锁也可以在一定时间后自动释放，避免资源被永远锁住。</p>
+</li>
+</ul>
+<p>以下是详细的代码分析：</p>
+<h3 id="获取锁"><a href="#获取锁" class="headerlink" title="获取锁"></a>获取锁</h3><p><code>getLock</code> 方法尝试获取锁。它使用 Redis 的 <code>SET</code> 命令，并通过 Lua 脚本确保操作的原子性。关键点如下：</p>
+<ul>
+<li><strong>锁超时</strong>：设置 key 的超时时间，以保证即使锁没有被显式释放，锁也可以在一定时间后自动释放，避免资源被永远锁住。</li>
+<li><strong>唯一值生成</strong>：使用 <code>md5(uniqid(&#39;&#39;, true))</code> 生成唯一的锁值，在后面释放锁时需要用到。</li>
+<li><strong>原子性</strong>：<code>SET</code> 命令结合 <code>NX</code> 和 <code>EX</code> 选项确保锁的唯一性和过期时间。Lua 脚本避免了多命令操作的并发问题。</li>
+<li><strong>重试机制</strong>：如果锁获取失败，方法会自旋重试，直到达到最大重试次数。每次重试之间，线程会等待 200 毫秒。</li>
+</ul>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">  * 获取锁，支持自旋</span></span><br><span class="line"><span class="comment">  *</span></span><br><span class="line"><span class="comment">  * <span class="doctag">@param</span>  string  $lockKey</span></span><br><span class="line"><span class="comment">  * <span class="doctag">@param</span>  int     $ttl           过期时间</span></span><br><span class="line"><span class="comment">  * <span class="doctag">@param</span>  int     $max_attempts  最大重试次数</span></span><br><span class="line"><span class="comment">  *</span></span><br><span class="line"><span class="comment">  * <span class="doctag">@return</span> string|null</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">getLock</span>(<span class="params"><span class="keyword">string</span> <span class="variable">$lockKey</span>, <span class="keyword">int</span> <span class="variable">$ttl</span> = <span class="number">20</span>, <span class="keyword">int</span> <span class="variable">$max_attempts</span> = <span class="number">10</span></span>): ?<span class="title">string</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="variable">$key</span> = <span class="built_in">self</span>::<span class="variable constant_">LOCK_PREFIX</span>.<span class="variable">$lockKey</span>;</span><br><span class="line">  <span class="variable">$uniqueValue</span> = <span class="title function_ invoke__">md5</span>(<span class="title function_ invoke__">uniqid</span>(<span class="string">&#x27;&#x27;</span>, <span class="literal">true</span>)); <span class="comment">// 生成唯一的锁值</span></span><br><span class="line">  <span class="variable">$attempts</span> = <span class="number">0</span>;</span><br><span class="line">  <span class="keyword">while</span> (<span class="variable">$attempts</span> &lt; <span class="variable">$max_attempts</span>) &#123;</span><br><span class="line">    <span class="variable">$luaScript</span> = <span class="string">&lt;&lt;&lt;SCRIPT</span></span><br><span class="line"><span class="string">            if redis.call(&#x27;SET&#x27;, KEYS[1], ARGV[1], &#x27;NX&#x27;, &#x27;EX&#x27;, ARGV[2]) then</span></span><br><span class="line"><span class="string">                return true</span></span><br><span class="line"><span class="string">            else</span></span><br><span class="line"><span class="string">                return false</span></span><br><span class="line"><span class="string">            end</span></span><br><span class="line"><span class="string">SCRIPT</span>;</span><br><span class="line"></span><br><span class="line">    <span class="variable">$result</span> = <span class="title class_">Redis</span>::<span class="keyword">eval</span>(<span class="variable">$luaScript</span>, <span class="number">1</span>, <span class="variable">$key</span>, <span class="variable">$uniqueValue</span>, <span class="variable">$ttl</span>);</span><br><span class="line">    <span class="keyword">if</span> (<span class="variable">$result</span>) &#123;</span><br><span class="line">      <span class="keyword">return</span> <span class="variable">$uniqueValue</span>; <span class="comment">// 成功获取锁</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="title function_ invoke__">usleep</span>(<span class="number">200</span> * <span class="number">1000</span>); <span class="comment">// 等待一段时间（微秒）</span></span><br><span class="line">    <span class="variable">$attempts</span>++;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> <span class="literal">null</span>; <span class="comment">// 达到最大重试次数后仍未获取到锁</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="释放锁"><a href="#释放锁" class="headerlink" title="释放锁"></a>释放锁</h3><p><code>releaseLock</code> 方法用于释放锁。它通过 Lua 脚本实现，确保只有持有锁的客户端才能释放锁。关键点如下：</p>
+<ul>
+<li><strong>锁误解除</strong>：如果线程 A 成功获取到了锁，并且设置了过期时间 30 秒，但线程 A 执行时间超过了 30 秒，锁过期自动释放，此时线程 B 获取到了锁；随后 A 执行完成，线程 A 使用 DEL 命令来释放锁，但此时线程 B 加的锁还没有执行完成，线程 A 实际释放的线程 B 加的锁。所以我们要获取当前锁的值并检查是否与传入的 <code>lockValue</code> 匹配。如果匹配，则执行 <code>DEL</code> 命令释放锁。这样可以防止误删其他客户端持有的锁。</li>
+</ul>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="function"><span class="keyword">function</span> <span class="title">releaseLock</span>(<span class="params"><span class="keyword">string</span> <span class="variable">$lockKey</span>, <span class="keyword">string</span> <span class="variable">$lockValue</span></span>): <span class="title">bool</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">  <span class="variable">$key</span> = <span class="built_in">self</span>::<span class="variable constant_">LOCK_PREFIX</span>.<span class="variable">$lockKey</span>;</span><br><span class="line"></span><br><span class="line">  <span class="variable">$luaScript</span> = <span class="string">&lt;&lt;&lt;SCRIPT</span></span><br><span class="line"><span class="string">        if redis.call(&#x27;GET&#x27;, KEYS[1]) == ARGV[1] then</span></span><br><span class="line"><span class="string">            return redis.call(&#x27;DEL&#x27;, KEYS[1])</span></span><br><span class="line"><span class="string">        else</span></span><br><span class="line"><span class="string">            return 0</span></span><br><span class="line"><span class="string">        end</span></span><br><span class="line"><span class="string">SCRIPT</span>;</span><br><span class="line"></span><br><span class="line">  <span class="variable">$result</span> = <span class="title class_">Redis</span>::<span class="keyword">eval</span>(<span class="variable">$luaScript</span>, <span class="number">1</span>, <span class="variable">$key</span>, <span class="variable">$lockValue</span>);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> <span class="variable">$result</span> === <span class="number">1</span>; <span class="comment">// 返回布尔值，表示是否成功释放锁</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h3><p>获取了锁之后一定要释放锁，所以用try  finally的错误捕获方法保证不管在获取锁之后是否发生错误，最后都会释放锁，这是安全使用锁的一种姿势。</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">$lockKey</span> = <span class="string">&#x27;xxx&#x27;</span>;<span class="comment">//业务key</span></span><br><span class="line"><span class="variable">$lockValue</span> = <span class="title class_">RedisLockService</span>::<span class="title function_ invoke__">getInstance</span>()-&gt;<span class="title function_ invoke__">getLock</span>(<span class="variable">$lockKey</span>);</span><br><span class="line"><span class="keyword">if</span>(!<span class="variable">$lockValue</span>) &#123;</span><br><span class="line">    <span class="comment">//没有拿到key</span></span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">try</span> &#123;</span><br><span class="line">    <span class="comment">// 拿到锁后处理业务</span></span><br><span class="line">&#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">    <span class="comment">// 释放锁</span></span><br><span class="line">    <span class="title class_">RedisLockService</span>::<span class="title function_ invoke__">getInstance</span>()-&gt;<span class="title function_ invoke__">releaseLock</span>(<span class="variable">$lockKey</span>, <span class="variable">$lockValue</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>Enjoy it</p>
+
+  </div>
+</article>
+
+
+    <div class="blog-post-comments">
+        <div id="utterances_thread">
+            <noscript>加载评论需要在浏览器启用 JavaScript 脚本支持。</noscript>
+        </div>
+    </div>
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+        
+          <li><a href="/archives/">Blog</a></li>
+        
+          <li><a href="/gtags/">Tags</a></li>
+        
+          <li><a href="/TODO/">TODO</a></li>
+        
+          <li><a target="_blank" rel="noopener" href="https://github.com/haix8">GitHub</a></li>
+        
+          <li><a href="/search/">Search</a></li>
+        
+      </ul>
+    </div>
+
+    
+    
+      <div id="toc-footer" style="display: none">
+        <ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%83%8C%E6%99%AF"><span class="toc-number">1.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%96%B9%E5%BC%8F"><span class="toc-number">2.</span> <span class="toc-text">实现方式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%8E%B7%E5%8F%96%E9%94%81"><span class="toc-number">3.</span> <span class="toc-text">获取锁</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8A%E6%94%BE%E9%94%81"><span class="toc-number">4.</span> <span class="toc-text">释放锁</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%BF%E7%94%A8"><span class="toc-number">5.</span> <span class="toc-text">使用</span></a></li></ol>
+      </div>
+    
+
+    <div id="share-footer" style="display: none">
+      <ul>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.facebook.com/sharer.php?u=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/"><i class="fab fa-facebook fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://twitter.com/share?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&text=PHP使用Redis实现分布式锁"><i class="fab fa-twitter fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.linkedin.com/shareArticle?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&title=PHP使用Redis实现分布式锁"><i class="fab fa-linkedin fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://pinterest.com/pin/create/bookmarklet/?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&is_video=false&description=PHP使用Redis实现分布式锁"><i class="fab fa-pinterest fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" href="mailto:?subject=PHP使用Redis实现分布式锁&body=Check out this article: https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/"><i class="fa-solid fa-envelope fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://getpocket.com/save?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&title=PHP使用Redis实现分布式锁"><i class="fab fa-get-pocket fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://reddit.com/submit?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&title=PHP使用Redis实现分布式锁"><i class="fab fa-reddit fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.stumbleupon.com/submit?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&title=PHP使用Redis实现分布式锁"><i class="fab fa-stumbleupon fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://digg.com/submit?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&title=PHP使用Redis实现分布式锁"><i class="fab fa-digg fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="http://www.tumblr.com/share/link?url=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&name=PHP使用Redis实现分布式锁&description="><i class="fab fa-tumblr fa-lg" aria-hidden="true"></i></a></li>
+  <li><a class="icon" target="_blank" rel="noopener" href="https://news.ycombinator.com/submitlink?u=https://haix8.github.io/haix8.github.io/PHP%E4%BD%BF%E7%94%A8-Redis-%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/&t=PHP使用Redis实现分布式锁"><i class="fab fa-hacker-news fa-lg" aria-hidden="true"></i></a></li>
+</ul>
+
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fa-solid fa-bars fa-lg" aria-hidden="true"></i> 菜单</a>
+        
+          <a id="toc" class="icon" href="#" onclick="$('#toc-footer').toggle();return false;"><i class="fa-solid fa-list fa-lg" aria-hidden="true"></i> 目录</a>
+        
+        <a id="share" class="icon" href="#" onclick="$('#share-footer').toggle();return false;"><i class="fa-solid fa-share-alt fa-lg" aria-hidden="true"></i> 分享</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fa-solid fa-chevron-up fa-lg" aria-hidden="true"></i> 返回顶部</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2024
+    Haix
+  </div>
+  <div class="footer-right">
+    <nav>
+      <ul>
+        <!--
+       --><li><a href="/archives/">Blog</a></li><!--
+     --><!--
+       --><li><a href="/gtags/">Tags</a></li><!--
+     --><!--
+       --><li><a href="/TODO/">TODO</a></li><!--
+     --><!--
+       --><li><a target="_blank" rel="noopener" href="https://github.com/haix8">GitHub</a></li><!--
+     --><!--
+       --><li><a href="/search/">Search</a></li><!--
+     -->
+      </ul>
+    </nav>
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script>
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script>
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"复制到粘贴板！\">";
+    btn += '<i class="fa-regular fa-clone"></i>';
+    btn += '</span>';
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "复制成功！");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+    <script type="text/javascript">
+      var utterances_repo = 'haix8/haix8.github.io';
+      var utterances_issue_term = 'pathname';
+      var utterances_label = 'Comment';
+      var utterances_theme = 'github-dark';
+
+      (function(){
+          var script = document.createElement('script');
+
+          script.src = 'https://utteranc.es/client.js';
+          script.setAttribute('repo', utterances_repo);
+          script.setAttribute('issue-term', 'pathname');
+          script.setAttribute('label', utterances_label);
+          script.setAttribute('theme', utterances_theme);
+          script.setAttribute('crossorigin', 'anonymous');
+          script.async = true;
+          (document.getElementById('utterances_thread')).appendChild(script);
+      }());
+  </script>
+
+</body>
+</html>
